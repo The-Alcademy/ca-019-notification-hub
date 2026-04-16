@@ -251,6 +251,8 @@ function Widget() {
       setErrorMsg("Please enter your WhatsApp number.");
       return;
     }
+    setSubStatus("loading");
+    setErrorMsg("");
 try {
       await db("subscribers", "POST", {
         name:             name.trim() || null,
@@ -262,24 +264,8 @@ try {
         tags:             selInterests,
         active:           true,
       }, "return=minimal");
-
       setSubStatus("success");
       setStep("success");
-   
-         // Also write to CA-024 people table — non-fatal
-      if (emailVal) {
-        try {
-          await db("rpc/upsert_person", "POST", {
-            p_email:     emailVal.trim().toLowerCase(),
-            p_name:      name.trim() || '',
-            p_phone:     waVal || null,
-            p_source:    'ic_enrolment',
-            p_source_ca: 'CA-019',
-          });
-        } catch (e) {
-          console.warn('[subscribe] upsert_person failed:', e);
-        }
-      }
     } catch (err: any) {
       if (err.code === "23505") { setSubStatus("already"); setStep("success"); }
       else { setSubStatus("error"); setErrorMsg("Something went wrong — please try again."); }
