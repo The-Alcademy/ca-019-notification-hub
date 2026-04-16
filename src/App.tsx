@@ -263,7 +263,10 @@ try {
         active:           true,
       }, "return=minimal");
 
-      // Also write to CA-024 people table — non-fatal
+      setSubStatus("success");
+      setStep("success");
+   
+         // Also write to CA-024 people table — non-fatal
       if (emailVal) {
         try {
           await db("rpc/upsert_person", "POST", {
@@ -277,9 +280,6 @@ try {
           console.warn('[subscribe] upsert_person failed:', e);
         }
       }
-
-      setSubStatus("success");
-      setStep("success");
     } catch (err: any) {
       if (err.code === "23505") { setSubStatus("already"); setStep("success"); }
       else { setSubStatus("error"); setErrorMsg("Something went wrong — please try again."); }
