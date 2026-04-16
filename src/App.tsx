@@ -251,28 +251,38 @@ function Widget() {
       setErrorMsg("Please enter your WhatsApp number.");
       return;
     }
-    setSubStatus("loading");
-    setErrorMsg("");
-    try {
-const subRes = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name:             name.trim() || null,
-          email:            emailVal    || null,
-          whatsapp:         waVal       || null,
-          notify_email:     selChannels.includes("email")    && !!emailVal,
-          notify_whatsapp:  selChannels.includes("whatsapp") && !!waVal,
-          source,
-          tags:             selInterests,
-        }),
-      });
-      if (subRes.status === 409) { setSubStatus("already"); setStep("success"); return; }
-      if (!subRes.ok) throw new Error(await subRes.text());
+try {
+      await db("subscribers", "POST", {
+        name:             name.trim() || null,
+        email:            emailVal    || null,
+        whatsapp:         waVal       || null,
+        notify_email:     selChannels.includes("email")    && !!emailVal,
+        notify_whatsapp:  selChannels.includes("whatsapp") && !!waVal,
+        source,
+        tags:             selInterests,
+        active:           true,
+      }, "return=minimal");
+
+      // Also write to CA-024 people table — non-fatal
+      if (emailVal) {
+        try {
+          await db("rpc/upsert_person", "POST", {
+            p_email:     emailVal.trim().toLowerCase(),
+            p_name:      name.trim() || '',
+            p_phone:     waVal || null,
+            p_source:    'ic_enrolment',
+            p_source_ca: 'CA-019',
+          });
+        } catch (e) {
+          console.warn('[subscribe] upsert_person failed:', e);
+        }
+      }
+
       setSubStatus("success");
       setStep("success");
     } catch (err: any) {
-      setSubStatus("error"); setErrorMsg("Something went wrong — please try again.");
+      if (err.code === "23505") { setSubStatus("already"); setStep("success"); }
+      else { setSubStatus("error"); setErrorMsg("Something went wrong — please try again."); }
     }
   };
 
