@@ -27,6 +27,7 @@ import { useState, useEffect, useCallback } from "react";
 
    ENV VARS (all server-side, no VITE_ prefix):
      SUPABASE_URL        SUPABASE_ANON_KEY
+     SUPABASE_SERVICE_ROLE_KEY   (api/subscribe.ts: the public sign-up)
      ADMIN_PASSWORD      RESEND_API_KEY
 
    ROUTING:
@@ -253,40 +254,24 @@ function Widget() {
     }
     setSubStatus("loading");
     setErrorMsg("");
-try {
-      await db("subscribers", "POST", {
-        name:             name.trim() || null,
-        email:            emailVal    || null,
-        whatsapp:         waVal       || null,
-        notify_email:     selChannels.includes("email")    && !!emailVal,
-        notify_whatsapp:  selChannels.includes("whatsapp") && !!waVal,
-        source,
-        tags:             selInterests,
-        active:           true,
-      }, "return=minimal");
-      setSubStatus("success");
-      setStep("success");
-
-      // Write to CA-024 people table — non-fatal
-      if (emailVal) {
-        try {
-await db("rpc/upsert_person_with_relationship", "POST", {
-            p_email:             emailVal.trim().toLowerCase(),
-            p_name:              name.trim() || '',
-            p_phone:             waVal || null,
-            p_source:            'ic_enrolment',
-            p_source_ca:         'CA-019',
-            p_relationship_type: 'subscriber',
-            p_property:          'artyst',
-          });
-        } catch (e) {
-          console.warn('[subscribe] upsert_person failed:', e);
-        }
+    // Server side (api/subscribe.ts): stores the subscriber, then registers the person in CA-024.
+    try {
+      const r = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email: emailVal, whatsapp: waVal, channels: selChannels, interests: selInterests, source }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setSubStatus("error");
+        setErrorMsg(data.error || "Something went wrong — please try again.");
+        return;
       }
-   
-    } catch (err: any) {
-      if (err.code === "23505") { setSubStatus("already"); setStep("success"); }
-      else { setSubStatus("error"); setErrorMsg("Something went wrong — please try again."); }
+      setSubStatus(data.status === "already" ? "already" : "success");
+      setStep("success");
+    } catch {
+      setSubStatus("error");
+      setErrorMsg("Something went wrong — please try again.");
     }
   };
 
